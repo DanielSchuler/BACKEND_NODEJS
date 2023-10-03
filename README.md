@@ -38,11 +38,12 @@ This Node.js backend application provides functionality for creating, managing, 
 
 ## API Endpoints
 
-GET /articles: Retrieve a list of all articles.
-GET /articles/:id: Retrieve a specific article by its ID.
-POST /articles: Create a new article with a title and content.
-PUT /articles/:id: Update an article by its ID.
-DELETE /articles/:id: Delete an article by its ID.
-POST /articles/:id/upload-image: Upload an image to an article by its ID.
-GET /articles/:id/get-image: Retrieve the image associated with an article.
-GET /articles/search/:keyword: Search for articles containing the specified keyword in the title or content.
+- `GET /articles`: Retrieve a list of all articles.
+- `GET /articles/:id`: Retrieve a specific article by its ID.
+- `POST /articles`: Create a new article with a title and content.
+- `PUT /articles/:id`: Update an article by its ID.
+- `DELETE /articles/:id`: Delete an article by its ID.
+- `POST /articles/:id/upload-image`: Upload an image to an article by its ID.
+- `GET /articles/:id/get-image`: Retrieve the image associated with an article.
+- `GET /articles/search/:keyword`: Search for articles containing the specified keyword in the title or content.
+
