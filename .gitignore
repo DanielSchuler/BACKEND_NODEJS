@@ -1,0 +1,43 @@
+# Ignore Node.js modules
+node_modules/
+
+# Ignore built files
+build/
+dist/
+
+# Ignore user uploads or any files inside the 'upload' folder
+upload/
+
+# Ignore npm package lock
+package-lock.json
+
+# Ignore application log files
+*.log
+
+# Ignore environment-specific configuration files, if any
+.env
+
+# Ignore any temporary files or directories
+.tmp/
+.temp/
+
+# Ignore IDE and editor-specific files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+
+# Ignore OS-generated files
+.DS_Store
+Thumbs.db
+
+# Ignore project-specific files
+README.txt
+package.json
+app.js
+
+# Ignore Node.js debug log
+debug.log
+
+# Ignore npm debug log
+npm-debug.log
