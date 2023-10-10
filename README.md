@@ -43,7 +43,15 @@ This Node.js backend application provides functionality for creating, managing, 
 - `POST /articles`: Create a new article with a title and content.
 - `PUT /articles/:id`: Update an article by its ID.
 - `DELETE /articles/:id`: Delete an article by its ID.
-- `POST /articles/:id/upload-image`: Upload an image to an article by its ID.
-- `GET /articles/:id/get-image`: Retrieve the image associated with an article.
-- `GET /articles/search/:keyword`: Search for articles containing the specified keyword in the title or content.
+
+## Services Usage
+
+This backend project follows a modular architecture and makes use of services to handle the CRUD (Create, Read, Update, Delete) operations for articles and image uploads. 
+Services are used to encapsulate business logic and interact with the database, providing a clear separation of concerns. Here's how services are utilized:
+
+- **Article Service:** The Article Service handles operations related to creating, retrieving, updating, and deleting articles. It encapsulates the logic for data validation,
+-  article CRUD operations, and also manages the uploading of images associated with articles.
+
+By using services, this project achieves better code organization, maintainability, and reusability, making it easier to expand and maintain in the future.
+
 
