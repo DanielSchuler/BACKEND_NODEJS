@@ -23,6 +23,7 @@ return res.status(200).send({
 
 var validator = require('validator');
 var Article = require('../models/article');
+const articleService = require('../services/articleService');
 
 //modulo de filesystem para ubicar los archivos subidos y poderlos borrar
 var fs = require('fs');
@@ -48,433 +49,372 @@ var controller = {
   },
 
 
-  /* Los call backs no son aceptados para la coneccion con MongoDB
-  revisar article copy para ver como era con callbacks y como fueron modificados a usar then o async
-  */
 
-
-
-
-  //USING THEN
-  //metodo save
+  // Controller: Handles HTTP request and response
   save: (req, res) => {
+    // Extract request parameters from the HTTP request body
     const params = req.body;
-    console.log('Received params:', params);
 
-    // Validate data using validator
-    const validate_title = !validator.isEmpty(params.title);
-    const validate_content = !validator.isEmpty(params.content);
-
-    if (validate_title && validate_content) {
-
-      // crear el objeto a guardar
-      var article = new Article();
-
-      // asignar valores
-      article.title = params.title;
-      article.content = params.content;
-
-      //date pero este se crea solo 
-
-      article.image = null;
-
-      // Save the article to the database using a promise (`.then()` syntax)
-      /*
-      
-      manajamos la siguiente estructura:
-      objeto.metodo().then((variable)=>{})
-      */
-      article
-        .save()
-        .then((articleStored) => {
-          if (!articleStored) {
+    // Call the save function in the articleService
+    articleService.save(params)
+      .then((result) => {
+        if (result.success) {
+          // If the article was successfully saved, respond with a success status (200) and the saved article
+          return res.status(200).send({
+            status: 'success',
+            article: result.article,
+          });
+        } else {
+          // Check for the error message 'Missing data' and send a bad request status (400) if it's missing data,
+          // otherwise, send a not found status (404) indicating the article wasn't saved
+          if (result.message === 'Missing data') {
+            return res.status(400).send({
+              status: 'error',
+              message: 'Missing data',
+            });
+          } else {
             return res.status(404).send({
               status: 'error',
               message: 'El artículo no se ha guardado',
             });
           }
-
-          return res.status(200).send({
-            status: 'success',
-            article: articleStored,
-          });
-        })
-        .catch((error) => {
-          return res.status(500).send({
-            status: 'error',
-            message: 'Error interno del servidor',
-          });
+        }
+      })
+      .catch((error) => {
+        // Handle any unexpected errors by responding with a server error status (500)
+        return res.status(500).send({
+          status: 'error',
+          message: 'Error interno del servidor',
         });
-    } else {
-      return res.status(200).send({
-        status: 'error',
-        message: 'Faltan datos',
       });
-    }
-  },//end save article
-  //metodo get para todos los articulos
-  //si deseo los ultimos 5 es opcional el parametro
+  },
 
 
+  // Controller: Handles HTTP request and response for fetching articles
   getArticles: (req, res) => {
+    // Extract request parameters from the HTTP request
+    var params = req.params;
 
-    var query = Article.find({})
-    var last = req.params.last;
-    if (last || last != undefined) {
-      query.limit(5);
-    }
-
-    //find para sacar los datos de la base de datos
-    // para ordenarlo del mas nuevo al mas viejo se usa sort y -el parametro que requiera validar
-    query.sort('-_id')
+    // Call the getArticles function in the articleService
+    articleService.getArticles(params)
       .then((articles) => {
-
-
         if (!articles || articles.length === 0) {
+          // If no articles were found, respond with a not found status (404) and an error message
           return res.status(404).send({
             status: 'error',
-            message: 'No hay articulos para devolver',
+            message: 'No hay artículos para devolver',
           });
         }
 
+        // If articles were found, respond with a success status (200) and the retrieved articles
         return res.status(200).send({
-
           status: 'success',
-          articles
+          articles,
         });
-
-      }).catch(error => {
-
+      })
+      .catch((error) => {
+        // Handle any unexpected errors by responding with a server error status (500)
         return res.status(500).send({
           status: 'error',
-          message: 'Error al devolver los articulos'
-        })
-
-
+          message: 'Error al devolver los artículos',
+        });
       });
+  },
 
-
-  },//end get all articles
-
-
-
-
-  // Handler for retrieving an article by IDs
+  // Controller: Handles HTTP request and response for fetching an article by ID
   getArticle: (req, res) => {
-    // Extract the article ID from the URL parameters
+    // Extract the article ID from the request parameters
     const articleId = req.params.id;
 
-    // Check if the articleId is missing or null, which is considered a bad request
-    if (!articleId) {
-      return res.status(400).send({
-        status: 'error',
-        message: 'No se proporcionó el ID del artículo.',
-      });
-    }
-
-    // Use Mongoose's findById method to find the article by its unique ID
-    Article.findById(articleId)
+    // Call the getArticleById function from the articleService
+    articleService.getArticleById(articleId)
       .then((article) => {
-        // Explicacion por que se REMUEVE LA CONDICION DE SI EL ARTICULO EXISTE esta condicion esta en el README dentro de controllers LINEA 90
-
-
-        // If found, respond with a 200 status and the article data
+        // If the article is found, respond with a success status (200) and the article data
         return res.status(200).send({
           status: 'success',
           article,
         });
       })
       .catch((error) => {
-        // Handle any unexpected database query errors with a 500 status
-        // PROBLEMAS DE CONECCION O EXISTENCIA DE ID
-        return res.status(500).send({
-          status: 'error',
-          message: 'Error al buscar el artículo en la base de datos. Puede que haya dado un Id que no exista o puede haber un problema de conexión.',
-        });
+        // If there's an error (e.g., article not found or database error), respond with a server error status (500)
+        // and send the error response directly to the client
+        return res.status(500).send(error);
       });
-  },//end get article by id
+  },
 
+  // Controller: Handles HTTP request and response for updating an article
   update: (req, res) => {
-    // Extract article ID from the URL parameters
-    const articleId = req.params.id;
-    // Extract data from the request body
+    // Extract the request body containing update parameters
     const params = req.body;
 
-    try {
-      // Validate the title and content fields
-      const validate_title = !validator.isEmpty(params.title);
-      const validate_content = !validator.isEmpty(params.content);
-
-      if (validate_title && validate_content) {
-        // Use findOneAndUpdate with promises to find and update the article
-        Article.findOneAndUpdate({ _id: articleId }, params, { new: true })
-          .then((articleUpdate) => {
-            // Check if the article was found and updated successfully
-            if (!articleUpdate) {
-              // If not found or not updated, respond with a 404 status and a message
-              return res.status(404).send({
-                status: 'error',
-                message: 'El artículo no existe o no se pudo encontrar y actualizar.',
-              });
-            }
-
-            // If successful, send a 200 status with the updated article
-            return res.status(200).send({
-              status: 'success',
-              article: articleUpdate,
-            });
-          })
-          .catch((error) => {
-            // Handle any errors during the update operation
-            return res.status(500).send({
-              status: 'error',
-              message: 'Error al actualizar los datos del artículo.',
-            });
+    // Call the update function from the articleService
+    articleService.update(params)
+      .then((result) => {
+        if (result.success) {
+          // If the update was successful, respond with a success status (200) and the updated article
+          return res.status(200).send({
+            status: 'success',
+            article: result.article,
           });
-      } else {
-        // Send a 200 status with a validation error message
-        return res.status(200).send({
-          status: 'error',
-          message: 'Algun campo tiene datos vacios',
-        });
-      }
-    } catch (err) {
-      // Handle any errors related to missing data
-      return res.status(200).send({
-        status: 'error',
-        message: 'algun campo no se envio',
-      });
-    }
-  },//end update by id
-
-
-
-
-  delete: function (req, res) {
-    // Extract article ID from the URL parameters
-    const articleId = req.params.id;
-
-    // Use findOneAndDelete with promises to find and delete the article
-    Article.findOneAndDelete({ _id: articleId })
-      .then((articleRemoved) => {
-        // Check if the article was found and deleted successfully
-        if (!articleRemoved) {
-          // If not found or not deleted, respond with a 404 status and a message
+        } else {
+          // If there was an issue with the update (e.g., validation error or article not found),
+          // respond with an error status (404) and an error message
           return res.status(404).send({
             status: 'error',
-            message: 'El artículo no existe o no se pudo eliminar.',
+            message: result.message,
           });
         }
-
-        // If successful, send a 200 status with the deleted article
-        return res.status(200).send({
-          status: 'success',
-          message: `Se ha eliminado el artículo deseado con el ID: ${articleId}`,
-          article: articleRemoved,
-        });
       })
       .catch((error) => {
-        // Handle any errors during the delete operation or database connectivity issues
+        // If there's a server error during the update process, respond with a server error status (500)
+        // and an internal server error message
         return res.status(500).send({
           status: 'error',
-          message: 'Error al eliminar el artículo. Puede haber un problema de conexión.',
+          message: 'Error interno del servidor',
         });
       });
-  },//end delete article by id
-
-  upload: function (req, res) {
-    // configurar el modulo connect mutiparty router/article.js
-
-
-    //recoger el archivo de la peticion
-    var file_name = 'Imagen no subida...'
-    console.log(req.files);
-    if (!req.files){
-        return res.status(404).send({
-          status:'error',  
-          message:file_name, 
-        
-        })
-    }
-    // conseguir el nombre y la extension
-    var file_path = req.files.file0.path;
-    var file_split =  file_path.split('\\')
-
-    /* si estoy usando linux o mac o lo voy a subir al servidor linux
-    ADVERTENCIA: var file_split =  file_name.split('/')
-    */
-
-
-    // Nombre del archivo
-    
-    file_name = file_split[2];
-    console.log('nombre del archivo'+file_name)
-
-    // Extension del archivo
-    var extension_split=file_name.split('\.');
-    
-    var file_extension=extension_split[1];
-    // comprobar la extension, solo imagenes. si no es valido borrar el archivo
-
-    if(file_extension!='png'&& file_extension!='jpg'&&file_extension!='jpeg'&& file_extension!='gif')
-    {
-      //borrar el archivo subido
-      // el .unlink permite borrar el archivo con la ruta especificada
-      fs.unlink(file_path,(err)=>{
-
-        return res.status(200).send({
-          status:'error',
-          message:'La extension del archivo no es valido'
-        });
-        
-      });
-    }else{
-
-      // si todo es valido
-      //tomo el id del articulo que llego por parametro
-      var articleId = req.params.id;
-      //buscar el articulo asignarle el nombre de la imagen y actualizarlo
-      Article.findOneAndUpdate({_id: articleId},{image:file_name},{new:true})
-      .then((articleUpdated) => {
-        
-        
-        return res.status(200).send({
-          status: 'success',
-          message: articleUpdated,
-          archivos:req.files,
-          split:file_split,
-          file_name:file_name,
-          extension_archivo:file_extension
-        });
-
-      }).catch((error) => {
-
+  },
+  //end get article by id
+  /*
+    update: (req, res) => {
+      // Extract article ID from the URL parameters
+      const articleId = req.params.id;
+      // Extract data from the request body
+      const params = req.body;
+  
+      try {
+        // Validate the title and content fields
+        const validate_title = !validator.isEmpty(params.title);
+        const validate_content = !validator.isEmpty(params.content);
+  
+        if (validate_title && validate_content) {
+          // Use findOneAndUpdate with promises to find and update the article
+          Article.findOneAndUpdate({ _id: articleId }, params, { new: true })
+            .then((articleUpdate) => {
+              // Check if the article was found and updated successfully
+              if (!articleUpdate) {
+                // If not found or not updated, respond with a 404 status and a message
+                return res.status(404).send({
+                  status: 'error',
+                  message: 'El artículo no existe o no se pudo encontrar y actualizar.',
+                });
+              }
+  
+              // If successful, send a 200 status with the updated article
+              return res.status(200).send({
+                status: 'success',
+                article: articleUpdate,
+              });
+            })
+            .catch((error) => {
+              // Handle any errors during the update operation
+              return res.status(500).send({
+                status: 'error',
+                message: 'Error al actualizar los datos del artículo.',
+              });
+            });
+        } else {
+          // Send a 200 status with a validation error message
+          return res.status(200).send({
+            status: 'error',
+            message: 'Algun campo tiene datos vacios',
+          });
+        }
+      } catch (err) {
+        // Handle any errors related to missing data
         return res.status(200).send({
           status: 'error',
-          message: 'Error al guardar la imagen de articulo'
+          message: 'algun campo no se envio',
+        });
+      }
+    },*///end update by id
+
+
+  // Controller: Handles HTTP request and response for deleting an article
+delete: function (req, res) {
+  // Extract the request parameters containing the article ID to be deleted
+  const params = req.params;
+
+  // Call the delete function from the articleService
+  articleService.delete(params)
+    .then((result) => {
+      if (result.success) {
+        // If the deletion was successful, respond with a success status (200) and a success message
+        return res.status(200).send({
+          status: 'success',
+          message: result.message,
+        });
+      } else {
+        // If there was an issue with the deletion (e.g., article not found), respond with an error status (404)
+        // and an error message
+        return res.status(404).send({
+          status: 'error',
+          message: result.message,
+        });
+      }
+    })
+    .catch((error) => {
+      // If there's a server error during the deletion process, respond with a server error status (500)
+      // and an internal server error message
+      return res.status(500).send({
+        status: 'error',
+        message: 'Error interno del servidor',
+      });
+    });
+},
+
+
+
+
+
+
+
+  // Controller: Handles HTTP request and response for uploading an image file to an article
+upload: function (req, res) {
+  // Extract the article ID and file path from the request
+  const articleId = req.params.id;
+  const file_path = req.files.file0.path;
+
+  // Call the uploadFile method from the articleService
+  articleService
+    .uploadFile(articleId, file_path)
+    .then((articleUpdated) => {
+      // If the image upload and article update were successful, respond with a success status (200)
+      // and additional information about the uploaded file
+      res.status(200).send({
+        status: 'success',
+        message: articleUpdated,
+        archivos: req.files,
+        split: file_path.split('\\'),
+        file_name: file_path.split('\\')[2],
+        extension_archivo: file_path.split('\\')[2].split('.')[1],
+      });
+    })
+    .catch((error) => {
+      // If there's an error during the upload or article update, respond with an error status (200)
+      // and an error message
+      res.status(200).send({
+        status: 'error',
+        message: error,
+      });
+    });
+},
+
+
+
+  //end upload file
+
+  //Se usa funcion flecha para hacer mas corta la sentenci
+  /**
+  * Función para obtener y enviar una imagen solicitada desde el sistema de archivos.
+  *
+  * @param {Object} req - El objeto de solicitud (request) que contiene información sobre la solicitud HTTP.
+  * @param {Object} res - El objeto de respuesta (response) que se utilizará para enviar la respuesta HTTP.
+  */
+  getImage: (req, res) => {
+    // Paso 1: Obtener el nombre del archivo de la URL proporcionada en la solicitud
+    var file = req.params.image;
+
+    // Paso 2: Construir la ruta completa del archivo solicitado
+    var path_file = './upload/articles/' + file;
+
+    // Paso 3: Comprobar si el archivo existe utilizando fs.access
+    fs.access(path_file, fs.constants.F_OK, (err) => {
+      if (err) {
+        // Paso 4a: Si el archivo no existe, responder con un estado 404 y un mensaje de error
+        return res.status(404).send({
+          status: 'success',
+          message: 'La imagen no existe',
+          file
+        });
+      } else {
+        // Paso 4b: Si el archivo existe, enviar el archivo como respuesta HTTP
+        // Nota: Esto se utiliza para cargar la imagen en una etiqueta de imagen en el navegador 
+        console.log('allgood');
+        return res.sendFile(path.resolve(path_file));
+      }
+    });
+  },// end getImage
+
+
+  //metodo para buscar elementos 
+
+  search: (req, res) => {
+
+    // sacar el string a buscar
+
+    var search_text = req.params.search
+
+
+    // Verificar que el texto de búsqueda tenga al menos 3 caracteres
+    if (search_text.length < 3) {
+      return res.status(400).send({
+        status: 'error',
+        message: 'El texto de búsqueda debe tener al menos 3 caracteres',
+      });
+    }
+
+    // find or para hacer varias condiciones
+    // no quiero que sean condiciones and o fijas y por eso usaremos el or
+    Article.find({
+      "$or": [
+        //busqueda por titulo: cuando el titulo contenga el el search_text con la opcion incluir {i}
+        // elemplo palabra a buscar guillermo titulos que lo contengan: Guillermo Tell, caballero Guillermo... etc,...
+        // si el search_text esta incluido en el titulo o en el content
+        { 'title': { "$regex": search_text, '$options': 'i' } },
+        { 'content': { "$regex": search_text, '$options': 'i' } }
+
+
+      ]
+    })
+      .sort([['date', 'descending']])
+      .exec().then((articles) => {
+
+
+        if (!articles || articles.length <= 0) {
+          return res.status(404).send({
+            status: 'error',
+            message: 'No hay articulos que coincidan con tu busqueda ',
+
+
+          });
+
+        }
+
+
+        return res.status(200).send({
+          status: 'success',
+          message: 'estas en el metodo search',
+          articles
 
         });
 
-      })
-     
 
-    }
- 
-    
+      }).catch((err) => {
 
 
-  
-  },//end upload file
+        if (err) {
+          return res.status(500).send({
+            status: 'success',
+            message: 'error en la peticion',
 
-  //Se usa funcion flecha para hacer mas corta la sentencia
- /**
- * Función para obtener y enviar una imagen solicitada desde el sistema de archivos.
- *
- * @param {Object} req - El objeto de solicitud (request) que contiene información sobre la solicitud HTTP.
- * @param {Object} res - El objeto de respuesta (response) que se utilizará para enviar la respuesta HTTP.
- */
-getImage: (req, res) => {
-  // Paso 1: Obtener el nombre del archivo de la URL proporcionada en la solicitud
-  var file = req.params.image;
-  
-  // Paso 2: Construir la ruta completa del archivo solicitado
-  var path_file = './upload/articles/' + file;
 
-  // Paso 3: Comprobar si el archivo existe utilizando fs.access
-  fs.access(path_file, fs.constants.F_OK, (err) => {
-      if (err) {
-          // Paso 4a: Si el archivo no existe, responder con un estado 404 y un mensaje de error
-          return res.status(404).send({
-              status: 'success',
-              message: 'La imagen no existe',
-              file
           });
-      } else {
-          // Paso 4b: Si el archivo existe, enviar el archivo como respuesta HTTP
-          // Nota: Esto se utiliza para cargar la imagen en una etiqueta de imagen en el navegador 
-          console.log('allgood');
-          return res.sendFile(path.resolve(path_file));
-      }
-  });
-},// end getImage
+
+        }
 
 
-//metodo para buscar elementos 
-
-search:(req, res) =>{
-
-  // sacar el string a buscar
-
-  var search_text=req.params.search
-
-
-   // Verificar que el texto de búsqueda tenga al menos 3 caracteres
-   if (search_text.length < 3) {
-    return res.status(400).send({
-      status: 'error',
-      message: 'El texto de búsqueda debe tener al menos 3 caracteres',
-    });
-  }
-
-  // find or para hacer varias condiciones
-  // no quiero que sean condiciones and o fijas y por eso usaremos el or
-  Article.find({"$or":[
-    //busqueda por titulo: cuando el titulo contenga el el search_text con la opcion incluir {i}
-    // elemplo palabra a buscar guillermo titulos que lo contengan: Guillermo Tell, caballero Guillermo... etc,...
-    // si el search_text esta incluido en el titulo o en el content
-    {'title':{"$regex":search_text,'$options':'i'}},
-    {'content':{"$regex":search_text,'$options':'i'}}
-
-
-  ]})
-  .sort([['date','descending']])
-  .exec().then((articles) => {
-
-
-    if(!articles||articles.length<=0) {
-      return res.status(404).send({
-        status: 'error',
-        message: 'No hay articulos que coincidan con tu busqueda ',
-        
-        
-    });
-
-    }
-
-
-    return res.status(200).send({
-      status: 'success',
-      message: 'estas en el metodo search',
-      articles
-      
-  });
-
-
-  }).catch((err) =>{
-
-
-    if(err) {
-      return res.status(500).send({
-        status: 'success',
-        message: 'error en la peticion',
-        
-        
-    });
-
-    }
-
-
-  });
-  
-    
+      });
 
 
 
- 
 
 
 
-},//end search function
+
+
+
+  },//end search function
 
 
 };// END CONTROLLER
